@@ -151,6 +151,8 @@ function App() {
       const { data } = await axios.get("http://localhost:8001/messages", {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
+      console.log(data);
+
       if (!privateKey) {
         console.warn("No private key available to decrypt messages");
         setMessages(
@@ -193,10 +195,13 @@ function App() {
                 `Failed to decrypt message ${msg._id}:`,
                 error.message
               );
-              return { ...msg, decrypted: `Failed: ${error.message}` };
+              // return { ...msg, decrypted: `Failed: ${error.message}` };
+              return { ...msg };
             }
           }
-          return { ...msg, decrypted: "Not for you" };
+          return { ...msg };
+
+          // return { ...msg, decrypted: "Not for you" };
         })
       );
       setMessages(decryptedMessages);
@@ -307,10 +312,10 @@ function App() {
         setMessages((prev) => [...prev, { ...msg, decrypted }]);
       } catch (error) {
         console.error("Failed to decrypt message:", error.message);
-        setMessages((prev) => [
-          ...prev,
-          { ...msg, decrypted: `Failed: ${error.message}` },
-        ]);
+        // setMessages((prev) => [
+        //   ...prev,
+        //   { ...msg, decrypted: `Failed: ${error.message}` },
+        // ]);
       }
     }
   };
@@ -423,12 +428,14 @@ function App() {
             ))}
           </select>
           <div className="h-full overflow-y-auto border p-2">
-            {messages.map((msg) => (
-              <p key={msg._id}>
-                {msg.senderId === user.userId ? "You" : "Them"}:{" "}
-                {msg.decrypted || "Encrypted"}
-              </p>
-            ))}
+            {messages
+              .filter((a) => a.decrypted)
+              .map((msg) => (
+                <p key={msg._id}>
+                  {msg.senderId === user.userId ? "You" : "Them"}:{" "}
+                  {msg.decrypted || "Encrypted"}
+                </p>
+              ))}
           </div>
           <input
             value={message}
