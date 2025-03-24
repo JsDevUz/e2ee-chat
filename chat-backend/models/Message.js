@@ -6,10 +6,11 @@ const messageSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  recipientId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Null for broadcast
+  recipientId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   encryptedMessage: { type: String, required: true },
   iv: { type: String, required: true },
-  encryptedKey: { type: String, required: true }, // Ensure this is present
+  encryptedKey: { type: String }, // For private messages
+  encryptedKeys: [{ userId: String, encryptedKey: String }], // For broadcast messages
   timestamp: { type: Date, default: Date.now },
 });
 

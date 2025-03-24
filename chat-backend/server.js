@@ -60,23 +60,27 @@ io.on("connection", (socket) => {
 
   socket.on(
     "sendMessage",
-    async ({ senderId, recipientId, encryptedMessage, iv, encryptedKey }) => {
-      console.log("Received encryptedKey on server:", encryptedKey); // Log on receipt
-      if (!encryptedKey) {
-        console.error("Encrypted key is missing or undefined on server");
-      }
-
-      const message = new Message({
+    async ({
+      senderId,
+      recipientId,
+      encryptedMessage,
+      iv,
+      encryptedKey,
+      encryptedKeys,
+    }) => {
+      const messageData = {
         senderId,
         recipientId,
         encryptedMessage,
         iv,
-        encryptedKey,
-      });
+        ...(recipientId ? { encryptedKey } : { encryptedKeys }), // Store appropriate field
+      };
+      const message = new Message(messageData);
       await message.save();
-      console.log("Saved message with encryptedKey:", message); // Log full saved object
 
       if (recipientId) {
+        console.log(senderId);
+
         io.to(recipientId).emit("receiveMessage", message);
       } else {
         io.emit("receiveMessage", message);
