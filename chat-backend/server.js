@@ -15,7 +15,7 @@ const server = http.createServer(app);
 // Configure CORS for Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Allow frontend origin (Vite default port)
+    origin: "https://e2ee-front.vercel.app", // Allow frontend origin (Vite default port)
     methods: ["GET", "POST"], // Allowed methods
     credentials: true, // Allow cookies/auth headers if needed
   },
@@ -24,7 +24,7 @@ const io = new Server(server, {
 // Configure CORS for Express
 app.use(
   cors({
-    origin: "http://localhost:5173", // Allow frontend origin
+    origin: "https://e2ee-front.vercel.app", // Allow frontend origin
     methods: ["GET", "POST"], // Allowed methods
     credentials: true, // Allow cookies/auth headers if needed
   })
