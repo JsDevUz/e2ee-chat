@@ -17,13 +17,38 @@ function App() {
   const [recipientId, setRecipientId] = useState("");
   const [privateKey, setPrivateKey] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const userId = localStorage.getItem("userId");
+    const username = localStorage.getItem("username");
+    if (token && userId && username) {
+      setUser({
+        userId: userId,
+        username: username,
+      });
+      setIsRegistering(true);
+      const storedPrivateKey = localStorage.getItem(`privateKey_${userId}`);
 
+      if (!storedPrivateKey) {
+        console.error(
+          "No private key found for this user. Cannot decrypt previous messages."
+        );
+        alert(
+          "No private key found. You won’t be able to decrypt previous messages until you provide it."
+        );
+      } else {
+        setPrivateKey(storedPrivateKey);
+      }
+    }
+  }, []);
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token && user) {
       socket.emit("join", user.userId);
       fetchMessages();
       fetchUsers();
+
+      setIsRegistering(true);
       fetchAndDecryptMessages();
       socket.on("receiveMessage", handleReceiveMessage);
     }
@@ -64,6 +89,7 @@ function App() {
 
     localStorage.setItem("token", data.token);
     localStorage.setItem("userId", data.userId);
+    localStorage.setItem("username", data.username);
     setUser({ userId: data.userId, username: data.username });
   };
 
@@ -80,6 +106,8 @@ function App() {
       }
     });
   };
+  console.log(user);
+
   const fetchAndDecryptMessages = async () => {
     try {
       const { data } = await axios.get("http://localhost:8001/messages", {
@@ -216,7 +244,6 @@ function App() {
 
       try {
         console.log("iii");
-
         let encryptedKey;
         if (msg.recipientId === null) {
           // Broadcast message
