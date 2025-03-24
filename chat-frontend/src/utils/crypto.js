@@ -1,5 +1,6 @@
 import CryptoJS from "crypto-js";
 
+// Generate RSA key pair
 export const generateKeyPair = async () => {
   const keyPair = await window.crypto.subtle.generateKey(
     {
@@ -21,12 +22,50 @@ export const generateKeyPair = async () => {
     keyPair.privateKey
   );
 
+  const exportedPublicKey = btoa(
+    String.fromCharCode(...new Uint8Array(publicKey))
+  );
+  const exportedPrivateKey = btoa(
+    String.fromCharCode(...new Uint8Array(privateKey))
+  );
+
   return {
-    publicKey: btoa(String.fromCharCode(...new Uint8Array(publicKey))),
-    privateKey: btoa(String.fromCharCode(...new Uint8Array(privateKey))),
+    publicKey: exportedPublicKey,
+    privateKey: exportedPrivateKey, // Base64-encoded private key for encryption
   };
 };
 
+// Encrypt private key with a passphrase
+export const encryptPrivateKey = (privateKey, passphrase) => {
+  if (!passphrase || typeof passphrase !== "string") {
+    throw new Error("Passphrase is required to encrypt the private key");
+  }
+  const iv = CryptoJS.lib.WordArray.random(16); // 128-bit IV
+  const encrypted = CryptoJS.AES.encrypt(privateKey, passphrase, { iv });
+  return {
+    encryptedPrivateKey: encrypted.toString(),
+    iv: iv.toString(CryptoJS.enc.Base64),
+  };
+};
+
+// Decrypt private key with a passphrase
+export const decryptPrivateKey = (encryptedPrivateKey, iv, passphrase) => {
+  if (!passphrase || typeof passphrase !== "string") {
+    throw new Error("Passphrase is required to decrypt the private key");
+  }
+  const decrypted = CryptoJS.AES.decrypt(encryptedPrivateKey, passphrase, {
+    iv: CryptoJS.enc.Base64.parse(iv),
+  });
+  const result = decrypted.toString(CryptoJS.enc.Utf8);
+  if (!result) {
+    throw new Error(
+      "Failed to decrypt private key: incorrect passphrase or corrupted data"
+    );
+  }
+  return result;
+};
+
+// Encrypt message with recipient's public key or all public keys (broadcast)
 export const encryptMessage = async (
   message,
   recipientPublicKey,
@@ -77,11 +116,11 @@ export const encryptMessage = async (
         };
       })
     );
-    console.log("Generated encryptedKeys for broadcast:", encryptedKeys);
+    // console.log("Generated encryptedKeys for broadcast:", encryptedKeys);
     return {
       encryptedMessage,
       iv: iv.toString(CryptoJS.enc.Base64),
-      encryptedKeys, // Array of { userId, encryptedKey }
+      encryptedKeys,
     };
   } else {
     // Private message
@@ -101,15 +140,16 @@ export const encryptMessage = async (
     const encryptedKey = btoa(
       String.fromCharCode(...new Uint8Array(encryptedKeyBytes))
     );
-    console.log("Generated encryptedKey:", encryptedKey);
+    // console.log("Generated encryptedKey:", encryptedKey);
     return {
       encryptedMessage,
       iv: iv.toString(CryptoJS.enc.Base64),
-      encryptedKey, // Single string
+      encryptedKey,
     };
   }
 };
 
+// Decrypt message with private key
 export const decryptMessage = async (
   encryptedMessage,
   iv,
@@ -117,20 +157,18 @@ export const decryptMessage = async (
   privateKey,
   userId
 ) => {
-  console.log("Decrypting with encryptedKeyInput:", encryptedKeyInput);
-  console.log(
-    "Private key (first 50 chars):",
-    privateKey ? privateKey.slice(0, 50) : "undefined"
-  );
+  // console.log("Decrypting with encryptedKeyInput:", encryptedKeyInput);
+  // console.log(
+  //   "Private key (first 50 chars):",
+  //   privateKey ? privateKey.slice(0, 50) : "undefined"
+  // );
 
   if (!privateKey || typeof privateKey !== "string") {
     throw new Error("Invalid private key");
   }
 
-  // Determine the encryptedKey based on input type
   let encryptedKey;
   if (Array.isArray(encryptedKeyInput)) {
-    // Broadcast message: find the encryptedKey for this user
     if (!userId) {
       throw new Error("userId required for broadcast message decryption");
     }
@@ -140,7 +178,6 @@ export const decryptMessage = async (
     }
     encryptedKey = keyObj.encryptedKey;
   } else if (typeof encryptedKeyInput === "string") {
-    // Private message: use the single encryptedKey
     encryptedKey = encryptedKeyInput;
   } else {
     throw new Error("Invalid encrypted key format");
@@ -153,7 +190,7 @@ export const decryptMessage = async (
   let decodedPrivateKey;
   try {
     decodedPrivateKey = atob(privateKey);
-    console.log("Decoded private key length:", decodedPrivateKey.length);
+    // console.log("Decoded private key length:", decodedPrivateKey.length);
   } catch (e) {
     throw new Error("Failed to decode private key: " + e.message);
   }
@@ -174,7 +211,7 @@ export const decryptMessage = async (
   let decodedEncryptedKey;
   try {
     decodedEncryptedKey = atob(encryptedKey);
-    console.log("Decoded encryptedKey length:", decodedEncryptedKey.length);
+    // console.log("Decoded encryptedKey length:", decodedEncryptedKey.length);
   } catch (e) {
     throw new Error("Failed to decode encryptedKey: " + e.message);
   }
@@ -186,7 +223,7 @@ export const decryptMessage = async (
       privKey,
       Uint8Array.from(decodedEncryptedKey, (c) => c.charCodeAt(0))
     );
-    console.log("Decrypted AES key length:", decryptedKey.byteLength);
+    // console.log("Decrypted AES key length:", decryptedKey.byteLength);
   } catch (e) {
     throw new Error("Decryption operation failed: " + e.message);
   }

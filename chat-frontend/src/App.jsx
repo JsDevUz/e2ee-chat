@@ -5,6 +5,8 @@ import {
   encryptMessage,
   decryptMessage,
   generateKeyPair,
+  encryptPrivateKey,
+  decryptPrivateKey,
 } from "./utils/crypto";
 
 const socket = io("http://localhost:8001");
@@ -16,6 +18,20 @@ function App() {
   const [message, setMessage] = useState("");
   const [recipientId, setRecipientId] = useState("");
   const [privateKey, setPrivateKey] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      let a = localStorage.getItem(
+        `encryptedPrivateKey_${user.userId}`,
+        privateKey
+      );
+      if (privateKey === a) {
+        localStorage.removeItem("token");
+        setIsRegistering(false);
+        setUser(null);
+      }
+    }
+  }, [user]);
   const [isRegistering, setIsRegistering] = useState(false);
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -27,18 +43,19 @@ function App() {
         username: username,
       });
       setIsRegistering(true);
-      const storedPrivateKey = localStorage.getItem(`privateKey_${userId}`);
+      const storedPrivateKey = localStorage.getItem(
+        `encryptedPrivateKey_${userId}`
+      );
 
       if (!storedPrivateKey) {
-        console.error(
-          "No private key found for this user. Cannot decrypt previous messages."
-        );
         alert(
           "No private key found. You won’t be able to decrypt previous messages until you provide it."
         );
       } else {
         setPrivateKey(storedPrivateKey);
       }
+    } else {
+      console.log("err #1");
     }
   }, []);
   useEffect(() => {
@@ -55,49 +72,71 @@ function App() {
     return () => socket.off("receiveMessage");
   }, [user]);
 
-  const register = async (username, password) => {
+  const register = async (username, password, passphrase) => {
     const { publicKey, privateKey } = await generateKeyPair();
-
+    const { encryptedPrivateKey, iv } = encryptPrivateKey(
+      privateKey,
+      passphrase
+    );
     const { data } = await axios.post("http://localhost:8001/auth/register", {
       username,
       password,
       publicKey,
     });
-    localStorage.setItem(`privateKey_${data.user._id}`, privateKey); // Store private key locally
+    localStorage.setItem(
+      `encryptedPrivateKey_${data.user._id}`,
+      encryptedPrivateKey
+    ); // Store private key locally
+    localStorage.setItem(`privateKeyIv_${data.user._id}`, iv); // Store IV locally
     setPrivateKey(privateKey);
     setUser({ userId: data.user._id, username: data.user.username });
     localStorage.setItem("token", data.token);
   };
 
-  const login = async (username, password) => {
+  const login = async (username, password, passphrase) => {
     const { data } = await axios.post("http://localhost:8001/auth/login", {
       username,
       password,
     });
-    const storedPrivateKey = localStorage.getItem(`privateKey_${data.userId}`);
+    const storedUserId = data.userId;
+    // const storedPrivateKey = localStorage.getItem(`privateKey_${data.userId}`);
+    const encryptedPrivateKey = localStorage.getItem(
+      `encryptedPrivateKey_${storedUserId}`
+    );
+    const iv = localStorage.getItem(`privateKeyIv_${storedUserId}`);
 
-    if (!storedPrivateKey) {
-      console.error(
-        "No private key found for this user. Cannot decrypt previous messages."
-      );
-      alert(
-        "No private key found. You won’t be able to decrypt previous messages until you provide it."
-      );
-    } else {
-      setPrivateKey(storedPrivateKey);
+    if (!encryptedPrivateKey || !iv) {
+      alert("No encrypted private key found. You may need to re-register.");
+      return;
     }
 
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("userId", data.userId);
-    localStorage.setItem("username", data.username);
-    setUser({ userId: data.userId, username: data.username });
+    try {
+      const decryptedPrivateKey = decryptPrivateKey(
+        encryptedPrivateKey,
+        iv,
+        passphrase
+      );
+      setPrivateKey(decryptedPrivateKey);
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("userId", storedUserId);
+      localStorage.setItem("username", data.username);
+
+      setUser({ userId: storedUserId, username: data.username });
+    } catch (error) {
+      console.error("Failed to decrypt private key:", error.message);
+      alert("Incorrect passphrase or corrupted key. Cannot decrypt messages.");
+    }
+
+    // localStorage.setItem("token", data.token);
+    // localStorage.setItem("userId", data.userId);
+    // localStorage.setItem("username", data.username);
+    // setUser({ userId: data.userId, username: data.username });
   };
 
   const fetchMessages = async () => {
     const { data } = await axios.get("http://localhost:8001/messages", {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     });
-    console.log(data);
 
     // setMessages(data);
     data.map((msg) => {
@@ -106,7 +145,6 @@ function App() {
       }
     });
   };
-  console.log(user);
 
   const fetchAndDecryptMessages = async () => {
     try {
@@ -196,7 +234,6 @@ function App() {
           null,
           allPublicKeys
         );
-        console.log("Sending encryptedKeys:", encryptedKeys);
 
         socket.emit("sendMessage", {
           senderId: user.userId,
@@ -220,7 +257,6 @@ function App() {
           message,
           publicKeyToUse
         );
-        console.log("Sending encryptedKey:", encryptedKey);
 
         socket.emit("sendMessage", {
           senderId: user.userId,
@@ -236,14 +272,8 @@ function App() {
     }
   };
   const handleReceiveMessage = async (msg) => {
-    console.log("Received message:", msg);
-    console.log("Is broadcast?", msg.recipientId === null ? "Yes" : "No");
-
     if (msg.recipientId === user.userId || msg.recipientId === null) {
-      console.log("rrr");
-
       try {
-        console.log("iii");
         let encryptedKey;
         if (msg.recipientId === null) {
           // Broadcast message
@@ -287,7 +317,7 @@ function App() {
   const RegisterComponent = () => {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-
+    const [passphrase, setPassphrase] = useState("");
     return (
       <div className="flex flex-col gap-4">
         <h2 className="text-xl">Register</h2>
@@ -304,8 +334,15 @@ function App() {
           onChange={(e) => setPassword(e.target.value)}
           className="border p-2"
         />
+        <input
+          placeholder="Passphrase (for private key)"
+          type="password"
+          value={passphrase}
+          onChange={(e) => setPassphrase(e.target.value)}
+          className="border p-2"
+        />
         <button
-          onClick={() => register(username, password)}
+          onClick={() => register(username, password, passphrase)}
           className="bg-green-500 text-white p-2"
         >
           Register
@@ -323,7 +360,7 @@ function App() {
   const LoginComponent = () => {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-
+    const [passphrase, setPassphrase] = useState("");
     return (
       <div className="flex flex-col gap-4">
         <h2 className="text-xl">Login</h2>
@@ -340,8 +377,15 @@ function App() {
           onChange={(e) => setPassword(e.target.value)}
           className="border p-2"
         />
+        <input
+          placeholder="Passphrase (for private key)"
+          type="password"
+          value={passphrase}
+          onChange={(e) => setPassphrase(e.target.value)}
+          className="border p-2"
+        />
         <button
-          onClick={() => login(username, password)}
+          onClick={() => login(username, password, passphrase)}
           className="bg-blue-500 text-white p-2"
         >
           Login
@@ -355,7 +399,6 @@ function App() {
       </div>
     );
   };
-  console.log(messages);
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -379,7 +422,7 @@ function App() {
               </option>
             ))}
           </select>
-          <div className="h-64 overflow-y-auto border p-2">
+          <div className="h-full overflow-y-auto border p-2">
             {messages.map((msg) => (
               <p key={msg._id}>
                 {msg.senderId === user.userId ? "You" : "Them"}:{" "}
