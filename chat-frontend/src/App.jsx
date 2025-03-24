@@ -9,7 +9,7 @@ import {
   decryptPrivateKey,
 } from "./utils/crypto";
 
-const socket = io("http://localhost:8001");
+const socket = io("http://54.92.186.169:8001");
 
 function App() {
   const [user, setUser] = useState(null);
@@ -78,11 +78,14 @@ function App() {
       privateKey,
       passphrase
     );
-    const { data } = await axios.post("http://localhost:8001/auth/register", {
-      username,
-      password,
-      publicKey,
-    });
+    const { data } = await axios.post(
+      "http://54.92.186.169:8001/auth/register",
+      {
+        username,
+        password,
+        publicKey,
+      }
+    );
     localStorage.setItem(
       `encryptedPrivateKey_${data.user._id}`,
       encryptedPrivateKey
@@ -94,7 +97,7 @@ function App() {
   };
 
   const login = async (username, password, passphrase) => {
-    const { data } = await axios.post("http://localhost:8001/auth/login", {
+    const { data } = await axios.post("http://54.92.186.169:8001/auth/login", {
       username,
       password,
     });
@@ -134,7 +137,7 @@ function App() {
   };
 
   const fetchMessages = async () => {
-    const { data } = await axios.get("http://localhost:8001/messages", {
+    const { data } = await axios.get("http://54.92.186.169:8001/messages", {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     });
 
@@ -148,7 +151,7 @@ function App() {
 
   const fetchAndDecryptMessages = async () => {
     try {
-      const { data } = await axios.get("http://localhost:8001/messages", {
+      const { data } = await axios.get("http://54.92.186.169:8001/messages", {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       console.log(data);
@@ -211,7 +214,7 @@ function App() {
     }
   };
   const fetchUsers = async () => {
-    const { data } = await axios.get("http://localhost:8001/users", {
+    const { data } = await axios.get("http://54.92.186.169:8001/users", {
       headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     });
     setUsers(data);
